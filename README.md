@@ -36,7 +36,6 @@ Contributions are welcome and appreciated, feel free to submit issues and/or pul
   - deleting unused keys from keyring
   - secure-deleting tmp directory
 - Improve argument parsing system
-- Run logs ever 10 seconds (instead of at every iteration)
 
 ### Known issues
 

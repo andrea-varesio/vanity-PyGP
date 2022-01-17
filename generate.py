@@ -10,6 +10,7 @@ print('This is free software, and you are welcome to redistribute it under certa
 print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
 print('**************************************************\n\n')
 
+import datetime
 import gpg
 import os
 import shutil
@@ -18,7 +19,6 @@ import sys
 import tempfile
 import time
 import wget
-from datetime import datetime
 
 def getEntropy():
     f = open('/proc/sys/kernel/random/entropy_avail','r')
@@ -78,10 +78,10 @@ else:
 
 checkEntropy()
 
-now = datetime.now()
-now = (now.strftime('_%Y%m%d_%H%M%S'))
+now = datetime.datetime.now()
+timestamp = (now.strftime('_%Y%m%d_%H%M%S'))
 
-with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=now) as GNUPGHOME:
+with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME:
 
     c = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
 
@@ -102,7 +102,8 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=now) as GNUPGHOME:
     userid = realname + ' <' + email + '>'
 
     i = 0
-    start = datetime.now()
+    start = datetime.datetime.now()
+    last = start
 
     while True:
         checkEntropy()
@@ -110,7 +111,10 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=now) as GNUPGHOME:
         fingerprint = format(dmkey.fpr)
         i += 1
         entropy = getEntropy()
-        print('Elapsed time: ' + str(datetime.now()-start) + ' | Entropy: ' + str(entropy) + ' | Try #' + str(i))
+        now = datetime.datetime.now()
+        if (now - last) > datetime.timedelta(seconds=10):
+            last = now
+            print('Elapsed time: ' + str(now - start) + ' | Entropy: ' + str(entropy) + ' | Try #' + str(i))
         if fingerprint[-len(filter):] == filter:
             break
         else:
@@ -126,7 +130,8 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=now) as GNUPGHOME:
             , shell=True, check=True, executable='/bin/bash')
             os.remove(GNUPGHOME + '/openpgp-revocs.d/' + fingerprint + '.rev')
 
-    print('\nMATCH FOUND')
+    print('\nMATCH FOUND: ' + fingerprint)
+    print('Elapsed time: ' + str(now - start) + ' | Entropy: ' + str(entropy) + ' | Try #' + str(i))
     keyid = fingerprint[-16:]
 
     f = open(encrContainer + 'publickey-0x' + keyid + '.asc', 'wb')
