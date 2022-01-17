@@ -10,11 +10,13 @@ print('This is free software, and you are welcome to redistribute it under certa
 print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
 print('**************************************************\n\n')
 
-import sys
+import gpg
 import os
+import shutil
 import subprocess
-import time
+import sys
 import tempfile
+import time
 import wget
 from datetime import datetime
 
@@ -51,11 +53,8 @@ def createVCcontainer():
         veracrypt -t -c --volume-type normal --size=500M --encryption=AES-Twofish-Serpent --hash=Whirlpool --filesystem=EXT4 --pim=0 --keyfiles="" vanity-pygp-$FILTER.hc
         printf '\nMounting the newly created container...\n'
         veracrypt -t -k "" --pim=0 --keyfiles="" --protect-hidden=no vanity-pygp-$FILTER.hc /media/veracrypt44
-        gpg --gen-random --armor 0 24 > /media/veracrypt44/passphrase.txt
     '''
-    ,
-    shell=True, check=True,
-    executable='/bin/bash')
+    , shell=True, check=True, executable='/bin/bash')
 
 if len(sys.argv)<2:
     print('ERROR    :   You need to pass one argument\n')
@@ -84,69 +83,76 @@ now = (now.strftime('_%Y%m%d_%H%M%S'))
 
 with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=now) as GNUPGHOME:
 
+    c = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
+
     f = open('var.tmp', 'w')
     f.write('export GNUPGHOME=' + GNUPGHOME + '\nexport FILTER=' + filter)
     f.close()
+
     print('Downloading gpg.conf')
     wget.download('https://raw.githubusercontent.com/drduh/config/master/gpg.conf', GNUPGHOME)
     print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
     input('Press ENTER to continue\n')
 
     createVCcontainer()
+    encrContainer = '/media/veracrypt44/'
 
     realname = input('\nEnter your Name: ')
     email = input('Enter your Email: ')
-    f = open('/media/veracrypt44/passphrase.txt','r')
-    passphrase = f.readlines()[0]
-    f.close()
-    f = open('/media/veracrypt44/gpg_batch.txt', 'w')
-    f.writelines(['Key-Type: 22','\nKey-Curve: ed25519', '\nKey-Usage: cert', '\nName-Real: ' + realname, '\nName-Email: ' + email, '\nExpire-Date: 0', '\nPassphrase: ' + passphrase])
-    f.close()
-    passphrase = None; del passphrase
+    userid = realname + ' <' + email + '>'
 
-    match = 'no'
     i = 0
-    start=datetime.now()
-    while 'no' in match:
+    start = datetime.now()
+
+    while True:
         checkEntropy()
-        subprocess.run(
-        r'''
-            source var.tmp
-            export FILTER_LEN=${#FILTER}
-            export KEYID="$(gpg --batch --gen-key /media/veracrypt44/gpg_batch.txt 2>&1 | grep -o -P '(?<= )[A-Z0-9]{16}')"
-            export KEYFINGERPRINT="$(gpg --with-colons --fingerprint --list-secret-keys $KEYID 2>&1 | sed -n 's/^fpr:::::::::\([[:alnum:]]\+\):/\1/p')"
-            export NEWKEY=${KEYFINGERPRINT:(-${FILTER_LEN})}
-            if [ "${NEWKEY}" == "${FILTER}" ];
-            then
-                export match="yes"
-                printf "\nMatch found: ${KEYFINGERPRINT}\n"
-                gpg --armor --export ${KEYFINGERPRINT} > /media/veracrypt44/publickey.asc
-                gpg --batch --pinentry-mode loopback --passphrase-file /media/veracrypt44/passphrase.txt --quiet --armor --export-secret-keys ${KEYFINGERPRINT} > /media/veracrypt44/secretkey.key
-                cp -ar $GNUPGHOME /media/veracrypt44/keyring/
-                gpg --batch --yes --delete-secret-keys ${KEYFINGERPRINT}
-                srm -r $GNUPGHOME || rm -rf $GNUPGHOME
-                unset GNUPGHOME
-                veracrypt -d vanity-pygp-$FILTER.hc
-            else
-                export match="no"
-                rm ${GNUPGHOME}/openpgp-revocs.d/*
-                gpg --batch --yes --delete-secret-keys ${KEYFINGERPRINT}
-                gpg --batch --yes --delete-keys ${KEYFINGERPRINT}
-            fi
-            echo "${match}" > match.tmp
-        ''',
-        shell=True, check=True, capture_output=False,
-        executable='/bin/bash')
-        f = open('match.tmp','r')
-        match = f.readlines()[0]
+        dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=False, certify=True, force=True)
+        fingerprint = format(dmkey.fpr)
         i += 1
         entropy = getEntropy()
         print('Elapsed time: ' + str(datetime.now()-start) + ' | Entropy: ' + str(entropy) + ' | Try #' + str(i))
+        if fingerprint[-len(filter):] == filter:
+            break
+        else:
+            f = open('fp.tmp', 'w')
+            f.write('export fingerprint=' + fingerprint)
+            f.close()
+            subprocess.run(
+            r'''
+                source fp.tmp
+                source var.tmp
+                gpg --batch --yes --delete-secret-and-public-keys ${fingerprint}
+            '''
+            , shell=True, check=True, executable='/bin/bash')
+            os.remove(GNUPGHOME + '/openpgp-revocs.d/' + fingerprint + '.rev')
 
-print('If you are in an ephemeral environment, make sure to save the VeraCrypt container somewhere safe and recoverable! ')
-print('\nExiting...\n')
+    print('\nMATCH FOUND')
+    keyid = fingerprint[-16:]
 
+    f = open(encrContainer + 'publickey-0x' + keyid + '.asc', 'wb')
+    f.write(c.key_export(pattern=fingerprint))
+    f.close()
+
+    f = open(encrContainer + 'secretkey-0x' + keyid + '.key', 'wb')
+    f.write(c.key_export_secret(pattern=fingerprint))
+    f.close()
+    os.chmod(encrContainer + 'secretkey-0x' + keyid + '.key', 0o600)
+
+    shutil.copytree(GNUPGHOME, encrContainer + os.path.basename(GNUPGHOME))
+    print('Securely erasing tmp files and unmounting encrypted container...')
+    subprocess.run(
+    r'''
+        source var.tmp
+        srm -r $GNUPGHOME || rm -rf $GNUPGHOME
+        veracrypt -d /media/veracrypt44 || echo 'Could not unmount container'
+    '''
+    , shell=True, check=True, executable='/bin/bash')
+
+print('If you are in an ephemeral environment, make sure to save the VeraCrypt container somewhere safe and recoverable!')
+
+if os.path.isfile('fp.tmp'):
+    os.remove('fp.tmp')
 os.remove('var.tmp')
-os.remove('match.tmp')
 
+print('\nExiting...\n')
 sys.exit(0)
