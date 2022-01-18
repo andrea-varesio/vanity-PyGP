@@ -1,15 +1,7 @@
 #!/bin/python3
-
 #https://github.com/andrea-varesio/vanity-PyGP
 
-print('\n**************************************************')
-print('"Vanity PyGP" - Securely generate PGP keys with a custom ID.')
-print('Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).')
-print('This program comes with ABSOLUTELY NO WARRANTY')
-print('This is free software, and you are welcome to redistribute it under certain conditions')
-print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
-print('**************************************************\n\n')
-
+import argparse
 import datetime
 import gpg
 import os
@@ -20,6 +12,20 @@ import tempfile
 import time
 import wget
 
+def parser():
+    parser = argparse.ArgumentParser(description='Securely generate PGP keys with a custom ID')
+    parser.add_argument('-f', '--filter', help='Find a key with ID matching this filter', type=str)
+    parser.add_argument('-n', '--name', help='Specify the uid name', type=str)
+    parser.add_argument('-e', '--email', help='Specify the uid email', type=str)
+    parser.add_argument('-p', '--path', help='Specify a path to save the generated key, without creating a container. ie: /dev/sda1/', type=str)
+    parser.add_argument('-s', '--stats', help='Print stats every 10 seconds', action='store_true')
+    parser.add_argument('-q', '--quiet', help='Disable the majority of prompts and verbosity', action='store_true')
+    parser.add_argument('--no-dismount', help='Do not dismount the container when a match is found', action='store_true')
+    parser.add_argument('--no-container', help='Skip the creation of an encrypted container', action='store_true')
+    parser.add_argument('--python-only', help='Do not use any bash subprocess (Not yet implemented)', action='store_true')
+    parser.add_argument('-c', '--check-entropy', help='Check the available entropy, then exit', action='store_true')
+    return parser.parse_args()
+
 def getEntropy():
     f = open('/proc/sys/kernel/random/entropy_avail','r')
     entropy = int(f.readlines()[0])
@@ -29,21 +35,24 @@ def getEntropy():
 def checkEntropy():
     entropy = getEntropy()
     if entropy<2000:
-        print('Entropy: ',entropy)
-        print('Not enough entropy')
-        print('Trying again in 60 seconds')
-        print('Use this time to type as many random characters as possible\n')
-        time.sleep(60)
-        entropy = getEntropy()
-        if entropy<2000:
-            print('\nEntropy: ',entropy)
+        if args.quiet == False:
+            print('Entropy: ',entropy)
             print('Not enough entropy')
-            print('Try again when the entropy is above 2000')
-            print('You can check the available entropy with "generate.py -e"')
-            print('Exiting...')
-            sys.exit(1)
+            print('Trying again in 60 seconds')
+            print('Use this time to type as many random characters as possible\n')
+            time.sleep(60)
+            entropy = getEntropy()
+            if entropy<2000:
+                print('\nEntropy: ',entropy)
+                print('Not enough entropy')
+                print('Try again when the entropy is above 2000')
+                print('You can check the available entropy with "generate.py -e"')
+                print('Exiting...')
+                sys.exit(1)
+            else:
+                print('\n\n\n')
         else:
-            print('\n\n\n')
+            sys.exit(1)
 
 def createVCcontainer():
     subprocess.run(
@@ -56,25 +65,20 @@ def createVCcontainer():
     '''
     , shell=True, check=True, executable='/bin/bash')
 
-if len(sys.argv)<2:
-    print('ERROR    :   You need to pass one argument\n')
-    print('USAGE    :   generate.py [FILTER] [-e]\n')
-    print('-e       :   check available entropy')
-    print('FILTER   :   find a key with ID matching this filter')
-    sys.exit(1)
-else:
-    if sys.argv[1] == '-e':
-        print('Entropy :', getEntropy())
-        sys.exit(0)
-    elif '-' in sys.argv[1]:
-        print('ERROR    :   Invalid argument\n')
-        print('USAGE    :   generate.py [FILTER] [-e]\n')
-        print('-e       :   check available entropy')
-        print('FILTER   :   find a key with ID matching this filter')
-        sys.exit(1)
-    else:
-        filter = sys.argv[1]
-        print('Looking for keys matching',filter)
+args = parser()
+
+if args.check_entropy:
+    print('Entropy :', getEntropy())
+    sys.exit(0)
+
+if args.quiet == False:
+    print('\n**************************************************')
+    print('"Vanity PyGP" - Securely generate PGP keys with a custom ID.')
+    print('Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).')
+    print('This program comes with ABSOLUTELY NO WARRANTY')
+    print('This is free software, and you are welcome to redistribute it under certain conditions')
+    print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
+    print('**************************************************\n\n')
 
 checkEntropy()
 
@@ -85,36 +89,65 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
 
     c = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
 
+    if args.filter != None:
+        filter = args.filter
+    else:
+        input('\nEnter the filter you want to look for')
+
     f = open('var.tmp', 'w')
-    f.write('export GNUPGHOME=' + GNUPGHOME + '\nexport FILTER=' + filter)
+    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FILTER="{filter}"\nexport nodismount={args.no_dismount}')
     f.close()
 
-    print('Downloading gpg.conf')
+    if args.quiet == False:
+        print('Downloading gpg.conf')
     wget.download('https://raw.githubusercontent.com/drduh/config/master/gpg.conf', GNUPGHOME)
-    print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
-    input('Press ENTER to continue\n')
 
-    createVCcontainer()
-    encrContainer = '/media/veracrypt44/'
+    if args.quiet == False:
+        print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
+        input('Press ENTER to continue\n')
 
-    realname = input('\nEnter your Name: ')
-    email = input('Enter your Email: ')
+    if args.path == None and args.no_container == False:
+        createVCcontainer()
+        savedir = f'/media/veracrypt44/generated_keys{timestamp}/'
+    elif args.path != None:
+        if os.path.isdir(args.path):
+            savedir = f'{args.path}/generated_keys{timestamp}/'
+        else:
+            if args.quiet == False:
+                print('Invalid path')
+            sys.exit(1)
+    else:
+        savedir = f'{os.path.dirname(os.path.realpath(__file__))}/generated_keys{timestamp}/'
+    os.mkdir(savedir)
+
+    if args.name != None:
+        realname = args.name
+    else:
+        realname = input('\nEnter your Name: ')
+
+    if args.email == None:
+        realname = args.email
+    else:
+        email = input('Enter your Email: ')
+
     userid = realname + ' <' + email + '>'
 
-    i = 0
-    start = datetime.datetime.now()
-    last = start
+    if args.stats:
+        i = 0
+        start = datetime.datetime.now()
+        last = start
 
     while True:
         checkEntropy()
         dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=False, certify=True, force=True)
         fingerprint = format(dmkey.fpr)
-        i += 1
-        entropy = getEntropy()
-        now = datetime.datetime.now()
-        if (now - last) > datetime.timedelta(seconds=10):
-            last = now
-            print('Elapsed time: ' + str(now - start) + ' | Entropy: ' + str(entropy) + ' | Try #' + str(i))
+        if args.stats:
+            i += 1
+            entropy = getEntropy()
+            now = datetime.datetime.now()
+            if (now - last) > datetime.timedelta(seconds=10):
+                last = now
+                print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
         if fingerprint[-len(filter):] == filter:
             break
         else:
@@ -130,34 +163,43 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
             , shell=True, check=True, executable='/bin/bash')
             os.remove(GNUPGHOME + '/openpgp-revocs.d/' + fingerprint + '.rev')
 
-    print('\nMATCH FOUND: ' + fingerprint)
-    print('Elapsed time: ' + str(now - start) + ' | Entropy: ' + str(entropy) + ' | Try #' + str(i))
+    if args.quiet == False:
+        print('\nMATCH FOUND: ' + fingerprint)
+
+    if args.stats:
+        print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
+
     keyid = fingerprint[-16:]
 
-    f = open(encrContainer + 'publickey-0x' + keyid + '.asc', 'wb')
+    f = open(f'{savedir}publickey-0x{keyid}.asc', 'wb')
     f.write(c.key_export(pattern=fingerprint))
     f.close()
 
-    f = open(encrContainer + 'secretkey-0x' + keyid + '.key', 'wb')
+    f = open(f'{savedir}secretkey-0x{keyid}.key', 'wb')
     f.write(c.key_export_secret(pattern=fingerprint))
     f.close()
-    os.chmod(encrContainer + 'secretkey-0x' + keyid + '.key', 0o600)
+    os.chmod(f'{savedir}secretkey-0x{keyid}.key', 0o600)
 
-    shutil.copytree(GNUPGHOME, encrContainer + os.path.basename(GNUPGHOME))
-    print('Securely erasing tmp files and unmounting encrypted container...')
+    shutil.copytree(GNUPGHOME, savedir + os.path.basename(GNUPGHOME))
+    if args.quiet == False:
+        print('Securely erasing tmp files and unmounting encrypted container (unless otherwise indicated) ...')
     subprocess.run(
     r'''
         source var.tmp
         srm -r $GNUPGHOME || rm -rf $GNUPGHOME
-        veracrypt -d /media/veracrypt44 || echo 'Could not unmount container'
+        if [ nodismount == False ]; then
+            veracrypt -d /media/veracrypt44 || echo 'Could not unmount container'
+        fi
     '''
     , shell=True, check=True, executable='/bin/bash')
 
-print('If you are in an ephemeral environment, make sure to save the VeraCrypt container somewhere safe and recoverable!')
+if args.quiet == False:
+    print('If you are in an ephemeral environment, make sure to save the VeraCrypt container somewhere safe and recoverable!')
 
 if os.path.isfile('fp.tmp'):
     os.remove('fp.tmp')
 os.remove('var.tmp')
 
-print('\nExiting...\n')
+if args.quiet == False:
+    print('\nExiting...\n')
 sys.exit(0)

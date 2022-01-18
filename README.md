@@ -22,9 +22,29 @@ debian / ubuntu | python3-gpg | `apt install python3-gpg`
 MacOS (homebrew) | gpgme | `brew install gpgme`
 
 ## How to use it
-Launch `generate.py` and pass your filter as argument (ie. `python3 generate.py FILTER`). You'll then be asked for a password for the creation of a VeraCrypt container. When prompted, you should disable networking. You'll then be able to enter your name and email address for the uid of the pgp key. When a key matching your filter is found, the secret key along the public key and the keyring will be copied into the VeraCrypt container, which will then be dismounted. At this point you should save this container somewhere safe and recoverable.
+Launch `generate.py` and pass your filter as argument (ie. `python3 generate.py -f FILTER`). You'll then be asked for a password for the creation of a VeraCrypt container. When prompted, you should disable networking. You'll then be able to enter your name and email address for the uid of the pgp key. When a key matching your filter is found, the secret key along the public key and the keyring will be copied into the VeraCrypt container, which will then be dismounted. At this point you should save this container somewhere safe and recoverable.
 
-Alternatively, run `python3 generate.py -e` to only check the available entropy.
+Alternatively, run `python3 generate.py -c` to only check the available entropy.
+
+Usage:
+```
+generate.py [-h] [-f FILTER] [-n NAME] [-e EMAIL] [-p PATH] [-s] [-q] [--no-dismount] [--no-container] [--python-only] [-c]
+```
+
+Short | Argument | Info
+---|---|---
+`-h` | `--help` | show this help message and exit
+`-f FILTER` | `--filter FILTER` | Find a key with ID matching this filter
+`-n NAME` | `--name NAME` | Specify the uid name
+`-e EMAIL` | `--email EMAIL` | Specify the uid email
+`-p PATH` | `--path PATH `| Specify a path to save the generated key, without creating a container. ie: /dev/sda1/
+`-s` | `--stats` | Print stats every 10 seconds
+`-q` | `--quiet` | Disable the majority of prompts and verbosity
+/ | `--no-dismount` | Do not dismount the container when a match is found
+/ | `--no-container` | Skip the creation of an encrypted container
+/ | `--python-only` | Do not use any bash subprocess (Not yet implemented)
+`-c` | `--check-entropy` | Check the available entropy, then exit
+
 
 ## Contributions
 Contributions are welcome and appreciated, feel free to submit issues and/or pull requests.
@@ -35,7 +55,6 @@ Contributions are welcome and appreciated, feel free to submit issues and/or pul
   - creating encrypted containers
   - deleting unused keys from keyring
   - secure-deleting tmp directory
-- Improve argument parsing system
 
 ### Known issues
 
