@@ -3,7 +3,7 @@
 ## What is it
 This tool will securely generate a certification-only ed25519 PGP master key with ID matching your specified filter (ie: 0x1234567890FILTER), using a hardened configuration.
 
-More specifically, a temporary directory `/tmp/gnupg_XXX_%Y%m%d_%H%M%S` will be used as ephemeral GNUPGHOME and securely erased when finished. An encrypted VeraCrypt container will be created and populated with ~passphrase,~ secret key, public key, and keyring (with revocation certificate), generated.
+More specifically, a temporary directory `/tmp/gnupg_XXX_%Y%m%d_%H%M%S` will be used as ephemeral GNUPGHOME and securely erased when finished. An encrypted VeraCrypt container will be created (unless the `--no-container` argument is passed) and populated with ~passphrase,~ secret key, public key, and keyring (with revocation certificate).
 
 Currently, generated keys are not protected with a passphrase, so you should add one if you wish. You should then take care to generate encryption, signing and, authentication subkeys (this could be automated, if requested).
 
@@ -12,7 +12,7 @@ At every iteration of the key generation process, the available entropy will be 
 ## Requirements
 - `gpgme` (see table below)
 - Install python requirements with: `pip install -r requirements.txt`
-- VeraCrypt ([download](https://veracrypt.fr/en/Downloads.html))
+- VeraCrypt ([download](https://veracrypt.fr/en/Downloads.html))(unless the `--no-container` argument is passed)
 - `secure-delete` is also strongly recommended (ie. `sudo apt install secure-delete`)
 
 OS | package | example command
@@ -23,6 +23,14 @@ MacOS (homebrew) | gpgme | `brew install gpgme`
 
 ## How to use it
 Launch `generate.py` and pass your filter as argument (ie. `python3 generate.py -f FILTER`). You'll then be asked for a password for the creation of a VeraCrypt container. When prompted, you should disable networking. You'll then be able to enter your name and email address for the uid of the pgp key. When a key matching your filter is found, the secret key along the public key and the keyring will be copied into the VeraCrypt container, which will then be dismounted. At this point you should save this container somewhere safe and recoverable.
+
+If you don't want any prompts, you can run the command below:
+```
+generate.py -f FILTER -n NAME -e EMAIL -p PATH -s
+```
+If you want no verbosity at all, remove `-s` and pass `-q`
+
+Note: passing a path automatically disables the creation of an encrypted VeraCrypt container.
 
 Alternatively, run `python3 generate.py -c` to only check the available entropy.
 
