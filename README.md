@@ -1,7 +1,7 @@
 # Vanity PyGP
 
 ## What is it
-This tool will securely generate a certification-only ed25519 PGP master key with ID matching your specified filter (ie: 0x1234567890FILTER), using a hardened configuration.
+This tool will securely generate a certification-only (pass `--signing-key` if you also want sign capability) ed25519 PGP master key with ID matching your specified filter (ie: 0x1234567890FILTER), using a hardened configuration.
 
 More specifically, a temporary directory `/tmp/gnupg_XXX_%Y%m%d_%H%M%S` will be used as ephemeral GNUPGHOME and securely erased when finished. An encrypted VeraCrypt container will be created (unless the `--no-container` argument is passed) and populated with ~passphrase,~ secret key, public key, and keyring (with revocation certificate).
 
@@ -36,7 +36,7 @@ Alternatively, run `python3 generate.py -c` to only check the available entropy.
 
 Usage:
 ```
-generate.py [-h] [-f FILTER] [-n NAME] [-e EMAIL] [-p PATH] [-s] [-q] [--no-dismount] [--no-container] [--python-only] [-c]
+generate.py [-h] [-f FILTER] [-n NAME] [-e EMAIL] [-p PATH] [-s] [-q] [--signing-key] [--no-dismount] [--no-container] [--python-only] [-c]
 ```
 
 Short | Argument | Info
@@ -48,12 +48,13 @@ Short | Argument | Info
 `-p PATH` | `--path PATH `| Specify a path to save the generated key, without creating a container. ie: /dev/sda1/
 `-s` | `--stats` | Print stats every 10 seconds
 `-q` | `--quiet` | Disable the majority of prompts and verbosity
+/ | `--signing-key` | Add sign capability to the master key
 / | `--no-dismount` | Do not dismount the container when a match is found
 / | `--no-container` | Skip the creation of an encrypted container
 / | `--python-only` | Do not use any bash subprocess (Not yet implemented)
 `-c` | `--check-entropy` | Check the available entropy, then exit
 
-
+parser.add_argument('', action='store_true')
 ## Contributions
 Contributions are welcome and appreciated, feel free to submit issues and/or pull requests.
 

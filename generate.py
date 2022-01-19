@@ -21,6 +21,7 @@ def parser():
     parser.add_argument('-p', '--path', help='Specify a path to save the generated key, without creating a container. ie: /dev/sda1/', type=str)
     parser.add_argument('-s', '--stats', help='Print stats every 10 seconds', action='store_true')
     parser.add_argument('-q', '--quiet', help='Disable the majority of prompts and verbosity', action='store_true')
+    parser.add_argument('--signing-key', help='Add sign capability to the master key', action='store_true')
     parser.add_argument('--no-dismount', help='Do not dismount the container when a match is found', action='store_true')
     parser.add_argument('--no-container', help='Skip the creation of an encrypted container', action='store_true')
     parser.add_argument('--python-only', help='Do not use any bash subprocess (Not yet implemented)', action='store_true')
@@ -137,7 +138,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         realname = input('\nEnter your Name: ')
 
     if args.email == None:
-        realname = args.email
+        email = args.email
     else:
         email = input('Enter your Email: ')
 
@@ -150,7 +151,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
 
     while True:
         checkEntropy()
-        dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=False, certify=True, force=True)
+        dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=args.signing_key, certify=True, force=True)
         fingerprint = format(dmkey.fpr)
         if args.stats:
             i += 1
