@@ -106,8 +106,13 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     else:
         input('\nEnter the filter you want to look for')
 
+    if args.no_container:
+        nodismount = True
+    else:
+        nodismount = args.no_dismount
+
     f = open('var.tmp', 'w')
-    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FILTER="{filter}"\nexport nodismount={args.no_dismount}')
+    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FILTER="{filter}"\nexport nodismount={nodismount}')
     f.close()
 
     if args.quiet == False:
