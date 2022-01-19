@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     else:
         realname = input('\nEnter your Name: ')
 
-    if args.email == None:
+    if args.email != None:
         email = args.email
     else:
         email = input('Enter your Email: ')
