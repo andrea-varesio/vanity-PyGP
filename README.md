@@ -1,5 +1,11 @@
 # Vanity PyGP
 
+<div align="center">
+<a href="https://github.com/andrea-varesio/vanity-PyGP/">
+  <img src="http://hits.dwyl.com/andrea-varesio/vanity-PyGP.svg?style=flat-square" alt="Hit count" />
+</a>
+</div>
+
 ## What is it
 This tool will securely generate a certification-only ed25519 PGP master key with ID matching your specified filter (ie: 0x1234567890FILTER), using a hardened configuration.
 
