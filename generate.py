@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import wget
+from contextlib import contextmanager
 
 def parser():
     parser = argparse.ArgumentParser(description='Securely generate PGP keys with a custom ID')
@@ -65,6 +66,16 @@ def createVCcontainer():
     '''
     , shell=True, check=True, executable='/bin/bash')
 
+@contextmanager
+def suppress_stdout():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+
 args = parser()
 
 if args.check_entropy:
@@ -100,7 +111,8 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
 
     if args.quiet == False:
         print('Downloading gpg.conf')
-    wget.download('https://raw.githubusercontent.com/drduh/config/master/gpg.conf', GNUPGHOME)
+    with suppress_stdout():
+        wget.download('https://raw.githubusercontent.com/drduh/config/master/gpg.conf', GNUPGHOME, bar=None)
 
     if args.quiet == False:
         print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
@@ -109,15 +121,14 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     if args.path == None and args.no_container == False:
         createVCcontainer()
         savedir = f'/media/veracrypt44/generated_keys{timestamp}/'
-    elif args.path != None:
-        if os.path.isdir(args.path):
-            savedir = f'{args.path}/generated_keys{timestamp}/'
-        else:
-            if args.quiet == False:
-                print('Invalid path')
-            sys.exit(1)
-    else:
+    elif args.path == None and args.no_container == True:
         savedir = f'{os.path.dirname(os.path.realpath(__file__))}/generated_keys{timestamp}/'
+    elif args.path != None and os.path.isdir(args.path):
+        savedir = f'{args.path}/generated_keys{timestamp}/'
+    else:
+        if args.quiet == False:
+            print('Invalid path')
+        sys.exit(1)
     os.mkdir(savedir)
 
     if args.name != None:
@@ -194,7 +205,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     , shell=True, check=True, executable='/bin/bash')
 
 if args.quiet == False:
-    print('If you are in an ephemeral environment, make sure to save the VeraCrypt container somewhere safe and recoverable!')
+    print('If you are in an ephemeral environment, make sure to save the keys somewhere safe and recoverable!')
 
 if os.path.isfile('fp.tmp'):
     os.remove('fp.tmp')
