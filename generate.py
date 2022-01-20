@@ -106,13 +106,8 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     else:
         input('\nEnter the filter you want to look for')
 
-    if args.no_container:
-        nodismount = True
-    else:
-        nodismount = args.no_dismount
-
     f = open('var.tmp', 'w')
-    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FILTER="{filter}"\nexport nodismount={nodismount}')
+    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FILTER="{filter}"\nexport nodismount={args.no_dismount}\nexport nocontainer={args.no_container}')
     f.close()
 
     if args.quiet == False:
@@ -155,30 +150,29 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         last = start
 
     while True:
-        checkEntropy()
-        dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=args.signing_key, certify=True, force=True)
-        fingerprint = format(dmkey.fpr)
-        if args.stats:
-            i += 1
-            entropy = getEntropy()
-            now = datetime.datetime.now()
-            if (now - last) > datetime.timedelta(seconds=10):
-                last = now
-                print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
-        if fingerprint[-len(filter):] == filter:
-            break
-        else:
-            f = open('fp.tmp', 'w')
-            f.write('export fingerprint=' + fingerprint)
-            f.close()
-            subprocess.run(
-            r'''
-                source fp.tmp
-                source var.tmp
-                gpg --batch --yes --delete-secret-and-public-keys ${fingerprint}
-            '''
-            , shell=True, check=True, executable='/bin/bash')
-            os.remove(GNUPGHOME + '/openpgp-revocs.d/' + fingerprint + '.rev')
+        with open('fp.tmp', 'w') as fp_tmp:
+            checkEntropy()
+            dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=args.signing_key, certify=True, force=True)
+            fingerprint = format(dmkey.fpr)
+            if args.stats:
+                i += 1
+                entropy = getEntropy()
+                now = datetime.datetime.now()
+                if (now - last) > datetime.timedelta(seconds=10):
+                    last = now
+                    print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
+            if fingerprint[-len(filter):] == filter:
+                break
+            else:
+                fp_tmp.write('export fingerprint=' + fingerprint)
+                subprocess.run(
+                r'''
+                    source fp.tmp
+                    source var.tmp
+                    gpg --batch --yes --delete-secret-and-public-keys ${fingerprint}
+                '''
+                , shell=True, check=True, executable='/bin/bash')
+                os.remove(GNUPGHOME + '/openpgp-revocs.d/' + fingerprint + '.rev')
 
     if args.quiet == False:
         print('\nMATCH FOUND: ' + fingerprint)
@@ -204,7 +198,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     r'''
         source var.tmp
         srm -r $GNUPGHOME || rm -rf $GNUPGHOME
-        if [ nodismount == False ]; then
+        if [ $nodismount == False ] && [ $nocontainer == False ]; then
             veracrypt -d /media/veracrypt44 || echo 'Could not unmount container'
         fi
     '''
