@@ -14,6 +14,15 @@ import wget
 from contextlib import contextmanager
 from cryptography.fernet import Fernet
 
+def license():
+    print('\n**************************************************')
+    print('"Vanity PyGP" - Securely generate PGP keys with a custom ID.')
+    print('Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).')
+    print('This program comes with ABSOLUTELY NO WARRANTY')
+    print('This is free software, and you are welcome to redistribute it under certain conditions')
+    print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
+    print('**************************************************\n\n')
+
 def parser():
     parser = argparse.ArgumentParser(description='Securely generate PGP keys with a custom ID')
     parser.add_argument('-f', '--filter', help='Find a key with ID matching this filter', type=str)
@@ -101,13 +110,7 @@ if args.check_entropy:
     sys.exit(0)
 
 if args.quiet == False:
-    print('\n**************************************************')
-    print('"Vanity PyGP" - Securely generate PGP keys with a custom ID.')
-    print('Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).')
-    print('This program comes with ABSOLUTELY NO WARRANTY')
-    print('This is free software, and you are welcome to redistribute it under certain conditions')
-    print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
-    print('**************************************************\n\n')
+    license()
 
 checkEntropy()
 
