@@ -1,2 +1,4 @@
 cython
+cryptography==3.3.2
+gpg
 wget==3.2

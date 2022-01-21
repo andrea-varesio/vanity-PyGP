@@ -12,19 +12,17 @@ import tempfile
 import time
 import wget
 from contextlib import contextmanager
+from cryptography.fernet import Fernet
 
 def parser():
     parser = argparse.ArgumentParser(description='Securely generate PGP keys with a custom ID')
     parser.add_argument('-f', '--filter', help='Find a key with ID matching this filter', type=str)
     parser.add_argument('-n', '--name', help='Specify the uid name', type=str)
     parser.add_argument('-e', '--email', help='Specify the uid email', type=str)
-    parser.add_argument('-p', '--path', help='Specify a path to save the generated key, without creating a container. ie: /dev/sda1/', type=str)
+    parser.add_argument('-p', '--path', help='Specify a path to save the generated key', type=str)
     parser.add_argument('-s', '--stats', help='Print stats every 10 seconds', action='store_true')
     parser.add_argument('-q', '--quiet', help='Disable the majority of prompts and verbosity', action='store_true')
     parser.add_argument('--signing-key', help='Add sign capability to the master key', action='store_true')
-    parser.add_argument('--no-dismount', help='Do not dismount the container when a match is found', action='store_true')
-    parser.add_argument('--no-container', help='Skip the creation of an encrypted container', action='store_true')
-    parser.add_argument('--python-only', help='Do not use any bash subprocess (Not yet implemented)', action='store_true')
     parser.add_argument('-c', '--check-entropy', help='Check the available entropy, then exit', action='store_true')
     return parser.parse_args()
 
@@ -56,16 +54,35 @@ def checkEntropy():
         else:
             sys.exit(1)
 
-def createVCcontainer():
-    subprocess.run(
-    r'''
-        source var.tmp
-        printf '\nCreating a new VeraCrypt container...\n'
-        veracrypt -t -c --volume-type normal --size=500M --encryption=AES-Twofish-Serpent --hash=Whirlpool --filesystem=EXT4 --pim=0 --keyfiles="" vanity-pygp-$FILTER.hc
-        printf '\nMounting the newly created container...\n'
-        veracrypt -t -k "" --pim=0 --keyfiles="" --protect-hidden=no vanity-pygp-$FILTER.hc /media/veracrypt44
-    '''
-    , shell=True, check=True, executable='/bin/bash')
+def print_stats():
+    entropy = getEntropy()
+    print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
+
+def generate_encryption_key(keyfile):
+    encryption_key = Fernet.generate_key()
+    with open(keyfile, 'wb') as keyfile:
+        keyfile.write(encryption_key)
+
+def load_encryption_key(keyfile):
+    return open(keyfile, 'rb').read()
+
+def encrypt_secret_key():
+    encrypted_file = os.path.join(savedir, f'encrypted-secretkey-0x{keyid}.key')
+    k = Fernet(load_encryption_key(keyfile))
+    encrypted_data = k.encrypt(c.key_export_secret(pattern=fingerprint))
+    with open(encrypted_file, 'wb') as encrypted_file:
+        encrypted_file.write(encrypted_data)
+    secure_permissions(os.path.join(savedir, f'encrypted-secretkey-0x{keyid}.key'))
+
+def encrypt(unencrypted_file):
+    encrypted_file = os.path.join(savedir, f'encrypted-{os.path.basename(unencrypted_file)}')
+    k = Fernet(load_encryption_key(keyfile))
+    encrypted_data = k.encrypt(open(unencrypted_file, 'rb').read())
+    with open(encrypted_file, 'wb') as encrypted_file:
+        encrypted_file.write(encrypted_data)
+
+def secure_permissions(file):
+    os.chmod(file, 0o600)
 
 @contextmanager
 def suppress_stdout():
@@ -101,15 +118,6 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
 
     c = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
 
-    if args.filter != None:
-        filter = args.filter
-    else:
-        input('\nEnter the filter you want to look for')
-
-    f = open('var.tmp', 'w')
-    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FILTER="{filter}"\nexport nodismount={args.no_dismount}\nexport nocontainer={args.no_container}')
-    f.close()
-
     if args.quiet == False:
         print('Downloading gpg.conf')
     with suppress_stdout():
@@ -119,18 +127,20 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
         input('Press ENTER to continue\n')
 
-    if args.path == None and args.no_container == False:
-        createVCcontainer()
-        savedir = f'/media/veracrypt44/generated_keys{timestamp}/'
-    elif args.path == None and args.no_container == True:
-        savedir = f'{os.path.dirname(os.path.realpath(__file__))}/generated_keys{timestamp}/'
-    elif args.path != None and os.path.isdir(args.path):
-        savedir = f'{args.path}/generated_keys{timestamp}/'
+    if args.path == None:
+        savedir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f'generated_keys{timestamp}')
+    elif os.path.isdir(args.path):
+        savedir = os.path.join(args.path, f'generated_keys{timestamp}')
     else:
         if args.quiet == False:
             print('Invalid path')
         sys.exit(1)
     os.mkdir(savedir)
+
+    if args.filter != None:
+        filter = args.filter
+    else:
+        input('\nEnter the filter you want to look for: ')
 
     if args.name != None:
         realname = args.name
@@ -144,71 +154,74 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
 
     userid = realname + ' <' + email + '>'
 
-    if args.stats:
-        i = 0
-        start = datetime.datetime.now()
-        last = start
+    keyfile = os.path.join(savedir, 'encryption-key.key')
+    generate_encryption_key(keyfile)
+    secure_permissions(keyfile)
+
+    i = 0
+    start = datetime.datetime.now()
+    last = start
 
     while True:
-        with open('fp.tmp', 'w') as fp_tmp:
+        dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=args.signing_key, certify=True, force=True)
+        fingerprint = format(dmkey.fpr)
+        now = datetime.datetime.now()
+        i += 1
+        if fingerprint[-len(filter):] == filter:
+            break
+        elif (now - last) > datetime.timedelta(seconds=10):
+            last = now
             checkEntropy()
-            dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=args.signing_key, certify=True, force=True)
-            fingerprint = format(dmkey.fpr)
+            shutil.rmtree(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
+            os.mkdir(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
+            shutil.rmtree(os.path.join(GNUPGHOME, 'openpgp-revocs.d'))
+            os.remove(os.path.join(GNUPGHOME, 'pubring.kbx~'))
+            os.remove(os.path.join(GNUPGHOME, 'pubring.kbx'))
             if args.stats:
-                i += 1
-                entropy = getEntropy()
-                now = datetime.datetime.now()
-                if (now - last) > datetime.timedelta(seconds=10):
-                    last = now
-                    print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
-            if fingerprint[-len(filter):] == filter:
-                break
-            else:
-                fp_tmp.write('export fingerprint=' + fingerprint)
-                subprocess.run(
-                r'''
-                    source fp.tmp
-                    source var.tmp
-                    gpg --batch --yes --delete-secret-and-public-keys ${fingerprint}
-                '''
-                , shell=True, check=True, executable='/bin/bash')
-                os.remove(GNUPGHOME + '/openpgp-revocs.d/' + fingerprint + '.rev')
+                print_stats()
 
     if args.quiet == False:
         print('\nMATCH FOUND: ' + fingerprint)
 
     if args.stats:
-        print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
+        print_stats()
 
+    key = c.get_key(dmkey.fpr, secret=True)
     keyid = fingerprint[-16:]
+    keygrip = str(key).partition('keygrip=\'')[2][:40]
 
-    f = open(f'{savedir}publickey-0x{keyid}.asc', 'wb')
+    f = open(os.path.join(savedir, f'publickey-0x{keyid}.asc'), 'wb')
     f.write(c.key_export(pattern=fingerprint))
     f.close()
 
-    f = open(f'{savedir}secretkey-0x{keyid}.key', 'wb')
-    f.write(c.key_export_secret(pattern=fingerprint))
-    f.close()
-    os.chmod(f'{savedir}secretkey-0x{keyid}.key', 0o600)
+    encrypt_secret_key()
 
-    shutil.copytree(GNUPGHOME, savedir + os.path.basename(GNUPGHOME))
+    encrypt(os.path.join(GNUPGHOME, 'private-keys-v1.d', f'{keygrip}.key'))
+    secure_permissions(os.path.join(savedir, f'encrypted-{keygrip}.key'))
+
+    encrypt(os.path.join(GNUPGHOME, 'openpgp-revocs.d', f'{fingerprint}.rev'))
+    secure_permissions(os.path.join(savedir, f'encrypted-{fingerprint}.rev'))
+
+    with suppress_stdout():
+        shutil.copy('decrypt.py', savedir)
+
     if args.quiet == False:
-        print('Securely erasing tmp files and unmounting encrypted container (unless otherwise indicated) ...')
+        print('\nSecurely erasing tmp files...')
+
+    f = open('var.tmp', 'w')
+    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FINGERPRINT={fingerprint}\nexport KEYGRIP={keygrip}')
+    f.close()
     subprocess.run(
     r'''
         source var.tmp
-        srm -r $GNUPGHOME || rm -rf $GNUPGHOME
-        if [ $nodismount == False ] && [ $nocontainer == False ]; then
-            veracrypt -d /media/veracrypt44 || echo 'Could not unmount container'
-        fi
+        srm -r $GNUPGHOME/private-keys-v1.d/$KEYGRIP.key || rm -rf $GNUPGHOME/private-keys-v1.d/$KEYGRIP.key
+        srm -r $GNUPGHOME/openpgp-revocs.d/$FINGERPRINT.rev || rm -rf $GNUPGHOME/openpgp-revocs.d/$FINGERPRINT.rev
     '''
     , shell=True, check=True, executable='/bin/bash')
 
 if args.quiet == False:
     print('If you are in an ephemeral environment, make sure to save the keys somewhere safe and recoverable!')
 
-if os.path.isfile('fp.tmp'):
-    os.remove('fp.tmp')
 os.remove('var.tmp')
 
 if args.quiet == False:
