@@ -26,7 +26,7 @@ If you don't want any prompts, you can run the command below:
 ```
 generate.py -f FILTER -n NAME -e EMAIL
 ```
-If you want no verbosity at all, remove `-s` and pass `-q`
+If you want no verbosity at all, pass `-q --disable-stats`.
 
 Alternatively, run `python3 generate.py -c` to only check the available entropy.
 
