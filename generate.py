@@ -13,6 +13,7 @@ import time
 import wget
 from contextlib import contextmanager
 from cryptography.fernet import Fernet
+from secure_delete import secure_delete
 
 def license():
     print('\n**************************************************')
@@ -29,8 +30,8 @@ def parser():
     parser.add_argument('-n', '--name', help='Specify the uid name', type=str)
     parser.add_argument('-e', '--email', help='Specify the uid email', type=str)
     parser.add_argument('-p', '--path', help='Specify a path to save the generated key', type=str)
-    parser.add_argument('-s', '--stats', help='Print stats every 10 seconds', action='store_true')
     parser.add_argument('-q', '--quiet', help='Disable the majority of prompts and verbosity', action='store_true')
+    parser.add_argument('--disable-stats', help='Disable stats every 10 seconds', action='store_true')
     parser.add_argument('--signing-key', help='Add sign capability to the master key', action='store_true')
     parser.add_argument('-c', '--check-entropy', help='Check the available entropy, then exit', action='store_true')
     return parser.parse_args()
@@ -180,13 +181,13 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
             shutil.rmtree(os.path.join(GNUPGHOME, 'openpgp-revocs.d'))
             os.remove(os.path.join(GNUPGHOME, 'pubring.kbx~'))
             os.remove(os.path.join(GNUPGHOME, 'pubring.kbx'))
-            if args.stats:
+            if not args.disable_stats:
                 print_stats()
 
     if args.quiet == False:
         print('\nMATCH FOUND: ' + fingerprint)
 
-    if args.stats:
+    if not args.disable_stats:
         print_stats()
 
     key = c.get_key(dmkey.fpr, secret=True)
@@ -209,23 +210,13 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         shutil.copy('decrypt.py', savedir)
 
     if args.quiet == False:
-        print('\nSecurely erasing tmp files...')
-
-    f = open('var.tmp', 'w')
-    f.write(f'export GNUPGHOME={GNUPGHOME}\nexport FINGERPRINT={fingerprint}\nexport KEYGRIP={keygrip}')
-    f.close()
-    subprocess.run(
-    r'''
-        source var.tmp
-        srm -r $GNUPGHOME/private-keys-v1.d/$KEYGRIP.key || rm -rf $GNUPGHOME/private-keys-v1.d/$KEYGRIP.key
-        srm -r $GNUPGHOME/openpgp-revocs.d/$FINGERPRINT.rev || rm -rf $GNUPGHOME/openpgp-revocs.d/$FINGERPRINT.rev
-    '''
-    , shell=True, check=True, executable='/bin/bash')
+        read('\nSecurely erasing tmp files...')
+    secure_delete.secure_random_seed_init()
+    secure_delete.secure_delete(os.path.join(GNUPGHOME, 'private-keys-v1.d', f'{keygrip}.key'))
+    secure_delete.secure_delete(os.path.join(GNUPGHOME, 'openpgp-revocs.d', f'{fingerprint}.rev'))
 
 if args.quiet == False:
     print('If you are in an ephemeral environment, make sure to save the keys somewhere safe and recoverable!')
-
-os.remove('var.tmp')
 
 if args.quiet == False:
     print('\nExiting...\n')

@@ -10,9 +10,8 @@ Currently, generated keys are not protected with a passphrase, so you should add
 Every 10 seconds during the key generation process, the available entropy will be checked and, if it falls below 2000, the script will pause for 60 seconds giving you the chance to input random data.
 
 ## Requirements
-- `gpgme` (see table below)
-- Install python requirements with: `pip install -r requirements.txt`
-- `secure-delete` is also strongly recommended (ie. `sudo apt install secure-delete`)
+**1)** `gpgme` (see table below)<br />
+**2)** Install python requirements with: `pip install -r requirements.txt`
 
 OS | package | example command
 ---|---|---
@@ -21,11 +20,11 @@ debian / ubuntu | python3-gpg | `apt install python3-gpg`
 MacOS (homebrew) | gpgme | `brew install gpgme`
 
 ## How to use it
-Launch `generate.py` and pass your filter as argument (ie. `python3 generate.py -f FILTER`). You'll then be asked for a password for the creation of a VeraCrypt container. When prompted, you should disable networking. You'll then be able to enter your name and email address for the uid of the pgp key. When a key matching your filter is found, the secret key along the public key and the keyring will be copied into the VeraCrypt container, which will then be dismounted. At this point you should save this container somewhere safe and recoverable.
+Launch `generate.py` and pass your filter as argument (ie. `python3 generate.py -f FILTER`). When prompted, you should disable networking. You'll then be able to enter your name and email address for the uid of the pgp key (or pass them with `-n NAME -e EMAIL`). When a key matching your filter is found, the secret key and the revocation certificate will be encrypted and copied with the public key in the designated directory.
 
 If you don't want any prompts, you can run the command below:
 ```
-generate.py -f FILTER -n NAME -e EMAIL -p PATH -s
+generate.py -f FILTER -n NAME -e EMAIL
 ```
 If you want no verbosity at all, remove `-s` and pass `-q`
 
@@ -33,7 +32,7 @@ Alternatively, run `python3 generate.py -c` to only check the available entropy.
 
 Usage:
 ```
-generate.py [-h] [-f FILTER] [-n NAME] [-e EMAIL] [-p PATH] [-s] [-q] [--signing-key] [-c]
+generate.py [-h] [-f FILTER] [-n NAME] [-e EMAIL] [-p PATH] [-q] [--disable-stats] [--signing-key] [-c]
 ```
 
 Short | Argument | Info
@@ -43,12 +42,12 @@ Short | Argument | Info
 `-n NAME` | `--name NAME` | Specify the uid name
 `-e EMAIL` | `--email EMAIL` | Specify the uid email
 `-p PATH` | `--path PATH `| Specify a path to save the generated key
-`-s` | `--stats` | Print stats every 10 seconds
 `-q` | `--quiet` | Disable the majority of prompts and verbosity
+/ | `--disable-stats` | Disable stats every 10 seconds
 / | `--signing-key` | Add sign capability to the master key
 `-c` | `--check-entropy` | Check the available entropy, then exit
 
-## How to decrypt
+## How to decrypt saved files
 Simply run `decrypt.py` from within the folder that contains the encrypted files. You can either decrypt all files at once with `-a` or only the files you need with `-f FILE` (one at the time).
 
 Note: make sure that `encryption-key.key` is present otherwise you won't be able to decrypt any file.
@@ -68,8 +67,6 @@ Contributions are welcome and appreciated, feel free to submit issues and/or pul
 
 ### To-Do
 - Further improve key generation speed
-- Move away from subprocess: look into native solutions for:
-  - secure-deleting tmp directory
 
 ### Known issues
 

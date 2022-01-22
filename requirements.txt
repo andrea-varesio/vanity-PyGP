@@ -1,4 +1,5 @@
 cython
 cryptography==3.3.2
 gpg
+secure_delete==0.0.2
 wget==3.2
