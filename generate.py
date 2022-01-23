@@ -64,8 +64,7 @@ def check_entropy():
             sys.exit(1)
 
 def print_stats():
-    entropy = get_entropy()
-    print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
+    print(f'Elapsed time: {str(now - start)} | Try #{str(i)}')
 
 def generate_encryption_key(keyfile):
     encryption_key = Fernet.generate_key()
@@ -174,7 +173,6 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
             break
         elif (now - last) > datetime.timedelta(seconds=10):
             last = now
-            check_entropy()
             shutil.rmtree(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
             os.mkdir(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
             shutil.rmtree(os.path.join(GNUPGHOME, 'openpgp-revocs.d'))

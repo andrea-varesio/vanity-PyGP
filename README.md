@@ -7,7 +7,7 @@ More specifically, a temporary directory `/tmp/gnupg_XXX_%Y%m%d_%H%M%S` will be 
 
 Currently, generated keys are not protected with a passphrase, so you should add one if you wish. You should then take care to generate encryption, signing and, authentication subkeys (this could be automated, if requested).
 
-Every 10 seconds during the key generation process, the available entropy will be checked and, if it falls below 2000, the script will pause for 60 seconds giving you the chance to input random data.
+Before starting the key generation process, the available entropy will be checked and, if it falls below 2000, the script will pause for 60 seconds giving you the chance to input random data.
 
 ## Requirements
 **1)** `gpgme` (see table below)<br />
