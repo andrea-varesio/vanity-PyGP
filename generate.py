@@ -35,22 +35,22 @@ def parser():
     parser.add_argument('-c', '--check-entropy', help='Check the available entropy, then exit', action='store_true')
     return parser.parse_args()
 
-def getEntropy():
+def get_entropy():
     f = open('/proc/sys/kernel/random/entropy_avail','r')
     entropy = int(f.readlines()[0])
     f.close()
     return entropy
 
-def checkEntropy():
-    entropy = getEntropy()
+def check_entropy():
+    entropy = get_entropy()
     if entropy<2000:
-        if args.quiet == False:
+        if not args.quiet:
             print('Entropy: ',entropy)
             print('Not enough entropy')
             print('Trying again in 60 seconds')
             print('Use this time to type as many random characters as possible\n')
             time.sleep(60)
-            entropy = getEntropy()
+            entropy = get_entropy()
             if entropy<2000:
                 print('\nEntropy: ',entropy)
                 print('Not enough entropy')
@@ -64,7 +64,7 @@ def checkEntropy():
             sys.exit(1)
 
 def print_stats():
-    entropy = getEntropy()
+    entropy = get_entropy()
     print(f'Elapsed time: {str(now - start)} | Entropy: {str(entropy)} | Try #{str(i)}')
 
 def generate_encryption_key(keyfile):
@@ -106,13 +106,13 @@ def suppress_stdout():
 args = parser()
 
 if args.check_entropy:
-    print('Entropy :', getEntropy())
+    print('Entropy :', get_entropy())
     sys.exit(0)
 
-if args.quiet == False:
+if not args.quiet:
     license()
 
-checkEntropy()
+check_entropy()
 
 now = datetime.datetime.now()
 timestamp = (now.strftime('_%Y%m%d_%H%M%S'))
@@ -121,12 +121,12 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
 
     c = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
 
-    if args.quiet == False:
+    if not args.quiet:
         print('Downloading gpg.conf')
     with suppress_stdout():
         wget.download('https://raw.githubusercontent.com/drduh/config/master/gpg.conf', GNUPGHOME, bar=None)
 
-    if args.quiet == False:
+    if not args.quiet:
         print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
         input('Press ENTER to continue\n')
 
@@ -135,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     elif os.path.isdir(args.path):
         savedir = os.path.join(args.path, f'generated_keys{timestamp}')
     else:
-        if args.quiet == False:
+        if not args.quiet:
             print('Invalid path')
         sys.exit(1)
     os.mkdir(savedir)
@@ -174,7 +174,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
             break
         elif (now - last) > datetime.timedelta(seconds=10):
             last = now
-            checkEntropy()
+            check_entropy()
             shutil.rmtree(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
             os.mkdir(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
             shutil.rmtree(os.path.join(GNUPGHOME, 'openpgp-revocs.d'))
@@ -183,7 +183,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
             if not args.disable_stats:
                 print_stats()
 
-    if args.quiet == False:
+    if not args.quiet:
         print('\nMATCH FOUND: ' + fingerprint)
 
     if not args.disable_stats:
@@ -208,15 +208,15 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     with suppress_stdout():
         shutil.copy('decrypt.py', savedir)
 
-    if args.quiet == False:
-        read('\nSecurely erasing tmp files...')
+    if not args.quiet:
+        print('\nSecurely erasing tmp files...')
     secure_delete.secure_random_seed_init()
     secure_delete.secure_delete(os.path.join(GNUPGHOME, 'private-keys-v1.d', f'{keygrip}.key'))
     secure_delete.secure_delete(os.path.join(GNUPGHOME, 'openpgp-revocs.d', f'{fingerprint}.rev'))
 
-if args.quiet == False:
+if not args.quiet:
     print('If you are in an ephemeral environment, make sure to save the keys somewhere safe and recoverable!')
 
-if args.quiet == False:
+if not args.quiet:
     print('\nExiting...\n')
 sys.exit(0)
