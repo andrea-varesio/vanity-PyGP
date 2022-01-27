@@ -3,18 +3,21 @@
 
 import argparse
 import datetime
-import gpg
 import os
 import shutil
 import sys
 import tempfile
 import time
-import wget
+
 from contextlib import contextmanager
+
+import gpg
+import wget
+
 from cryptography.fernet import Fernet
 from secure_delete import secure_delete
 
-def license():
+def show_license():
     print('\n**************************************************')
     print('"Vanity PyGP" - Securely generate PGP keys with a custom ID.')
     print('Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).')
@@ -36,9 +39,8 @@ def parser():
     return parser.parse_args()
 
 def get_entropy():
-    f = open('/proc/sys/kernel/random/entropy_avail','r')
-    entropy = int(f.readlines()[0])
-    f.close()
+    with open('/proc/sys/kernel/random/entropy_avail','r') as f:
+        entropy = int(f.readlines()[0])
     return entropy
 
 def check_entropy():
@@ -109,7 +111,7 @@ if args.check_entropy:
     sys.exit(0)
 
 if not args.quiet:
-    license()
+    show_license()
 
 check_entropy()
 
@@ -129,7 +131,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
         input('Press ENTER to continue\n')
 
-    if args.path == None:
+    if args.path is None:
         savedir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f'generated_keys{timestamp}')
     elif os.path.isdir(args.path):
         savedir = os.path.join(args.path, f'generated_keys{timestamp}')
@@ -139,17 +141,17 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         sys.exit(1)
     os.mkdir(savedir)
 
-    if args.filter != None:
-        filter = args.filter
+    if args.filter is not None:
+        key_filter = args.filter
     else:
         input('\nEnter the filter you want to look for: ')
 
-    if args.name != None:
+    if args.name is not None:
         realname = args.name
     else:
         realname = input('\nEnter your Name: ')
 
-    if args.email != None:
+    if args.email is not None:
         email = args.email
     else:
         email = input('Enter your Email: ')
@@ -169,7 +171,7 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
         fingerprint = format(dmkey.fpr)
         now = datetime.datetime.now()
         i += 1
-        if fingerprint[-len(filter):] == filter:
+        if fingerprint[-len(key_filter):] == key_filter:
             break
         elif (now - last) > datetime.timedelta(seconds=10):
             last = now
@@ -191,9 +193,8 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     keyid = fingerprint[-16:]
     keygrip = str(key).partition('keygrip=\'')[2][:40]
 
-    f = open(os.path.join(savedir, f'publickey-0x{keyid}.asc'), 'wb')
-    f.write(c.key_export(pattern=fingerprint))
-    f.close()
+    with open(os.path.join(savedir, f'publickey-0x{keyid}.asc'), 'wb') as f:
+        f.write(c.key_export(pattern=fingerprint))
 
     encrypt_secret_key()
 

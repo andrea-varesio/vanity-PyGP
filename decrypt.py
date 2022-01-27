@@ -12,7 +12,6 @@
 """
 
 import argparse
-import glob
 import os
 import sys
 from cryptography.fernet import Fernet
@@ -41,7 +40,8 @@ def decrypt(encrypted_file, decrypted_file):
     decrypted_data = k.decrypt(encrypted_data)
     with open(decrypted_file, 'wb') as decrypted_file:
         decrypted_file.write(decrypted_data)
-    decrypted_data = None; del decrypted_data
+    decrypted_data = None
+    del decrypted_data
 
 def secure_permissions(file):
     os.chmod(file, 0o600)
@@ -64,12 +64,12 @@ if args.all:
     create_decryption_dir(decryption_dir)
     for encrypted_file in os.listdir(os.path.dirname(os.path.realpath(__file__))):
         if encrypted_file.startswith('encrypted-'):
-                start_decryption(encrypted_file)
-elif args.file != None and os.path.isfile(args.file):
+            start_decryption(encrypted_file)
+elif args.file is not None and os.path.isfile(args.file):
     create_decryption_dir(decryption_dir)
     encrypted_file = args.file
     start_decryption(encrypted_file)
-elif args.file != None:
+elif args.file is not None:
     print('Invalid file provided')
     sys.exit(1)
 
