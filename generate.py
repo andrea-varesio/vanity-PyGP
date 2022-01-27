@@ -27,7 +27,8 @@ def show_license():
     print('**************************************************\n\n')
 
 def parser():
-    parser = argparse.ArgumentParser(description='Securely generate PGP keys with a custom ID')
+    show_license()
+    parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--filter', help='Find a key with ID matching this filter', type=str)
     parser.add_argument('-n', '--name', help='Specify the uid name', type=str)
     parser.add_argument('-e', '--email', help='Specify the uid email', type=str)
@@ -109,9 +110,6 @@ args = parser()
 if args.check_entropy:
     print('Entropy :', get_entropy())
     sys.exit(0)
-
-if not args.quiet:
-    show_license()
 
 check_entropy()
 

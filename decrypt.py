@@ -1,22 +1,22 @@
 #!/bin/python3
 #https://github.com/andrea-varesio/vanity-PyGP
 
-"""
-************************************************************************************************
-***  Vanity PyGP" - Securely generate PGP keys with a custom ID.                             ***
-***  Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).                     ***
-***  This program comes with ABSOLUTELY NO WARRANTY                                          ***
-***  This is free software, and you are welcome to redistribute it under certain conditions  ***
-***  Full license available at https://github.com/andrea-varesio/vanity-PyGP                 ***
-************************************************************************************************
-"""
-
 import argparse
 import os
 import sys
 from cryptography.fernet import Fernet
 
+def show_license():
+    print('\n**************************************************')
+    print('"Vanity PyGP" - Securely generate PGP keys with a custom ID.')
+    print('Copyright (C) 2022 Andrea Varesio (https://www.andreavaresio.com/).')
+    print('This program comes with ABSOLUTELY NO WARRANTY')
+    print('This is free software, and you are welcome to redistribute it under certain conditions')
+    print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
+    print('**************************************************\n\n')
+
 def parser():
+    show_license()
     parser = argparse.ArgumentParser(description='Decrypt vanity-PyGP keys')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-a', '--all', help='Decrypt all files', action='store_true')
