@@ -26,22 +26,30 @@ def show_license():
     print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
     print('**************************************************\n\n')
 
-def parser():
+def parse_arguments():
     show_license()
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--filter', help='Find a key with ID matching this filter', type=str)
-    parser.add_argument('-n', '--name', help='Specify the uid name', type=str)
-    parser.add_argument('-e', '--email', help='Specify the uid email', type=str)
-    parser.add_argument('-p', '--path', help='Specify a path to save the generated key', type=str)
-    parser.add_argument('-q', '--quiet', help='Disable the majority of prompts and verbosity', action='store_true')
-    parser.add_argument('--disable-stats', help='Disable stats every 10 seconds', action='store_true')
-    parser.add_argument('--signing-key', help='Add sign capability to the master key', action='store_true')
-    parser.add_argument('-c', '--check-entropy', help='Check the available entropy, then exit', action='store_true')
+    parser.add_argument('-f', '--filter', type=str,
+                        help='Find a key with ID matching this filter')
+    parser.add_argument('-n', '--name', type=str,
+                        help='Specify the uid name')
+    parser.add_argument('-e', '--email', type=str,
+                        help='Specify the uid email')
+    parser.add_argument('-p', '--path', type=str,
+                        help='Specify a path to save the generated key')
+    parser.add_argument('-q', '--quiet', action='store_true',
+                        help='Disable the majority of prompts and verbosity')
+    parser.add_argument('--disable-stats', action='store_true',
+                        help='Disable stats every 10 seconds')
+    parser.add_argument('--signing-key', action='store_true',
+                        help='Add sign capability to the master key')
+    parser.add_argument('-c', '--check-entropy', action='store_true',
+                        help='Check the available entropy, then exit')
     return parser.parse_args()
 
 def get_entropy():
-    with open('/proc/sys/kernel/random/entropy_avail','r') as f:
-        entropy = int(f.readlines()[0])
+    with open('/proc/sys/kernel/random/entropy_avail','r') as entropy_avail:
+        entropy = int(entropy_avail.readlines()[0])
     return entropy
 
 def check_entropy():
@@ -69,27 +77,28 @@ def check_entropy():
 def print_stats():
     print(f'Elapsed time: {str(now - start)} | Try #{str(i)}')
 
-def generate_encryption_key(keyfile):
+def generate_encryption_key(keyfile_path):
     encryption_key = Fernet.generate_key()
-    with open(keyfile, 'wb') as keyfile:
-        keyfile.write(encryption_key)
+    with open(keyfile_path, 'wb') as keyfile_data:
+        keyfile_data.write(encryption_key)
 
-def load_encryption_key(keyfile):
-    return open(keyfile, 'rb').read()
+def load_encryption_key(keyfile_path):
+    return open(keyfile_path, 'rb').read()
 
 def encrypt_secret_key():
-    encrypted_file = os.path.join(savedir, f'encrypted-secretkey-0x{keyid}.key')
+    encrypted_file_path = os.path.join(savedir, f'encrypted-secretkey-0x{keyid}.key')
     k = Fernet(load_encryption_key(keyfile))
-    encrypted_data = k.encrypt(c.key_export_secret(pattern=fingerprint))
-    with open(encrypted_file, 'wb') as encrypted_file:
+    encrypted_data = k.encrypt(gpg_context.key_export_secret(pattern=fingerprint))
+    with open(encrypted_file_path, 'wb') as encrypted_file:
         encrypted_file.write(encrypted_data)
     secure_permissions(os.path.join(savedir, f'encrypted-secretkey-0x{keyid}.key'))
 
 def encrypt(unencrypted_file):
-    encrypted_file = os.path.join(savedir, f'encrypted-{os.path.basename(unencrypted_file)}')
+    encrypted_file_path = os.path.join(savedir, f'encrypted-{os.path.basename(unencrypted_file)}')
     k = Fernet(load_encryption_key(keyfile))
-    encrypted_data = k.encrypt(open(unencrypted_file, 'rb').read())
-    with open(encrypted_file, 'wb') as encrypted_file:
+    with open(unencrypted_file, 'rb') as unencrypted_data:
+        encrypted_data = k.encrypt(unencrypted_data.read())
+    with open(encrypted_file_path, 'wb') as encrypted_file:
         encrypted_file.write(encrypted_data)
 
 def secure_permissions(file):
@@ -105,7 +114,7 @@ def suppress_stdout():
         finally:
             sys.stdout = old_stdout
 
-args = parser()
+args = parse_arguments()
 
 if args.check_entropy:
     print('Entropy :', get_entropy())
@@ -118,19 +127,27 @@ timestamp = (now.strftime('_%Y%m%d_%H%M%S'))
 
 with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME:
 
-    c = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
+    gpg_context = gpg.Context(armor=True, offline=True, home_dir=GNUPGHOME)
 
     if not args.quiet:
         print('Downloading gpg.conf')
     with suppress_stdout():
-        wget.download('https://raw.githubusercontent.com/drduh/config/master/gpg.conf', GNUPGHOME, bar=None)
+        wget.download(
+            'https://raw.githubusercontent.com/drduh/config/master/gpg.conf',
+            GNUPGHOME, bar=None
+        )
 
     if not args.quiet:
-        print('\n\nIt is now recommended that you DISABLE networking for the remainder of the process')
+        print(
+            '\n\nIt is now recommended that you DISABLE networking for the remainder of the process'
+        )
         input('Press ENTER to continue\n')
 
     if args.path is None:
-        savedir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f'generated_keys{timestamp}')
+        savedir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            f'generated_keys{timestamp}'
+        )
     elif os.path.isdir(args.path):
         savedir = os.path.join(args.path, f'generated_keys{timestamp}')
     else:
@@ -165,13 +182,16 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     last = start
 
     while True:
-        dmkey = c.create_key(userid, algorithm='ed25519', expires=False, sign=args.signing_key, certify=True, force=True)
+        dmkey = gpg_context.create_key(
+            userid, algorithm='ed25519', expires=False,
+            sign=args.signing_key, certify=True, force=True
+        )
         fingerprint = format(dmkey.fpr)
         now = datetime.datetime.now()
         i += 1
         if fingerprint[-len(key_filter):] == key_filter:
             break
-        elif (now - last) > datetime.timedelta(seconds=10):
+        if (now - last) > datetime.timedelta(seconds=10):
             last = now
             shutil.rmtree(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
             os.mkdir(os.path.join(GNUPGHOME, 'private-keys-v1.d'))
@@ -187,12 +207,12 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     if not args.disable_stats:
         print_stats()
 
-    key = c.get_key(dmkey.fpr, secret=True)
+    key = gpg_context.get_key(dmkey.fpr, secret=True)
     keyid = fingerprint[-16:]
     keygrip = str(key).partition('keygrip=\'')[2][:40]
 
-    with open(os.path.join(savedir, f'publickey-0x{keyid}.asc'), 'wb') as f:
-        f.write(c.key_export(pattern=fingerprint))
+    with open(os.path.join(savedir, f'publickey-0x{keyid}.asc'), 'wb') as public_key:
+        public_key.write(gpg_context.key_export(pattern=fingerprint))
 
     encrypt_secret_key()
 
@@ -210,10 +230,3 @@ with tempfile.TemporaryDirectory(prefix='gnupg_', suffix=timestamp) as GNUPGHOME
     secure_delete.secure_random_seed_init()
     secure_delete.secure_delete(os.path.join(GNUPGHOME, 'private-keys-v1.d', f'{keygrip}.key'))
     secure_delete.secure_delete(os.path.join(GNUPGHOME, 'openpgp-revocs.d', f'{fingerprint}.rev'))
-
-if not args.quiet:
-    print('If you are in an ephemeral environment, make sure to save the keys somewhere safe and recoverable!')
-
-if not args.quiet:
-    print('\nExiting...\n')
-sys.exit(0)

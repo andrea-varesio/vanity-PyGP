@@ -4,6 +4,7 @@
 import argparse
 import os
 import sys
+
 from cryptography.fernet import Fernet
 
 def show_license():
@@ -15,7 +16,7 @@ def show_license():
     print('Full license available at https://github.com/andrea-varesio/vanity-PyGP')
     print('**************************************************\n\n')
 
-def parser():
+def parse_arguments():
     show_license()
     parser = argparse.ArgumentParser(description='Decrypt vanity-PyGP keys')
     group = parser.add_mutually_exclusive_group()
@@ -26,18 +27,17 @@ def parser():
         sys.exit(1)
     return parser.parse_args()
 
-def load_encryption_key(keyfile):
-    return open(keyfile, 'rb').read()
+def load_encryption_key(keyfile_path):
+    return open(keyfile_path, 'rb').read()
 
-def create_decryption_dir(decryption_dir):
-    if not os.path.isdir(decryption_dir):
-        os.mkdir(decryption_dir)
+def create_decryption_dir(decryption_dir_path):
+    if not os.path.isdir(decryption_dir_path):
+        os.mkdir(decryption_dir_path)
 
 def decrypt(encrypted_file, decrypted_file):
     k = Fernet(load_encryption_key(keyfile))
-    with open(encrypted_file, 'rb') as encrypted_file:
-        encrypted_data = encrypted_file.read()
-    decrypted_data = k.decrypt(encrypted_data)
+    with open(encrypted_file, 'rb') as encrypted_data:
+        decrypted_data = k.decrypt(encrypted_data.read())
     with open(decrypted_file, 'wb') as decrypted_file:
         decrypted_file.write(decrypted_data)
     decrypted_data = None
@@ -47,11 +47,14 @@ def secure_permissions(file):
     os.chmod(file, 0o600)
 
 def start_decryption(encrypted_file):
-    decrypted_file = os.path.join(decryption_dir, os.path.basename(encrypted_file).replace('encrypted-',''))
+    decrypted_file = os.path.join(
+        decryption_dir,
+        os.path.basename(encrypted_file).replace('encrypted-','')
+    )
     decrypt(encrypted_file, decrypted_file)
     secure_permissions(decrypted_file)
 
-args = parser()
+args = parse_arguments()
 
 keyfile = 'encryption-key.key'
 if not os.path.isfile(keyfile):
