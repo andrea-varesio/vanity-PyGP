@@ -1,3 +1,6 @@
+# ⚠️ WARNING ⚠️
+This project is no longer being maintained and will be archived. Use at your own risk.
+
 # Vanity PyGP
 
 ## What is it
